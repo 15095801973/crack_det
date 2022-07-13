@@ -9,7 +9,7 @@ ret1, th1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
 # Otsu阈值
 ret2, th2 = cv.threshold(img, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 # 高斯滤波后再采用Otsu阈值
-blur = cv.GaussianBlur(img, (5, 5), 0)
+blur = cv.GaussianBlur(img, (15, 15), 0)
 ret3, th3 = cv.threshold(blur, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 
 # 绘制所有图像及其直方图

@@ -675,7 +675,7 @@ def det():
     # 在随机的图片上进行测试
     dataset = dataset_val
     image_id = random.choice(dataset.image_ids)
-    # image_id = 1
+    # image_id = 14
     print(image_id)
     # 加载图片和元数据
     original_image, image_meta, gt_class_id, gt_bbox, gt_mask = \
@@ -848,7 +848,8 @@ def det_crack500(min2 = False):
     # 在随机的图片上进行测试
     dataset = dataset_train
     image_id = random.choice(dataset.image_ids)
-    image_id = 544
+    # image_id = 544
+    image_id = 2701
     print(f'visual_image_id = {image_id}')
     # 加载图片和元数据
     original_image, image_meta, gt_class_id, gt_bbox, gt_mask = \
@@ -868,6 +869,7 @@ def det_crack500(min2 = False):
     #输入只有一张图片,
     r = results[0]
     #可视化原图+检测框+mask
+    float_masks = r['float_masks']
     visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'],
                                 dataset.class_names, r['scores'])
 
@@ -916,51 +918,53 @@ def det_crack500(min2 = False):
         window = image_meta[7:11]
         return window.astype(int)
     # y1, x1, y2, x2 = comp_wind()
-    y1, x1, y2, x2 = gt_bbox[0]
-    mask = utils.resize(masks, (y2 - y1, x2 - x1))
-    full_mask[y1:y2, x1:x2] = mask
-    # plt.imshow(full_mask, cmap='gray')
-    plt.subplot(233), plt.imshow(masks, cmap='gray'), plt.title('original_masks')
-    plt.subplot(232), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+    if len(gt_bbox) >= 1:
+        # 没有裂缝就完了
+        y1, x1, y2, x2 = gt_bbox[0]
+        mask = utils.resize(masks, (y2 - y1, x2 - x1))
+        full_mask[y1:y2, x1:x2] = mask
+        # plt.imshow(full_mask, cmap='gray')
+        plt.subplot(233), plt.imshow(masks, cmap='gray'), plt.title('original_masks')
+        plt.subplot(232), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
 
-    thresh2 = utils.resize(thresh,(128,128))
-    # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
+        thresh2 = utils.resize(thresh,(128,128))
+        # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
 
-    # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
-    mix_mask = full_mask*0.55 + (255.0-thresh2)*0.45
-    bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
-    plt.subplot(235), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
-    plt.subplot(236), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+        # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
+        mix_mask = full_mask*0.55 + (255.0-thresh2)*0.45
+        bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
+        plt.subplot(235), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
+        plt.subplot(236), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
 
-    plt.show()
-    # Put the mask in the right location.
-    reshape_mask = utils.resize(bool_mask,[128,128,1])
-    visualize.display_instances(original_image, r['rois'], reshape_mask, r['class_ids'],
-                                dataset.class_names, r['scores'])
-    window_mask = np.zeros([128,128,1], dtype=float)
-    y1, x1, y2, x2 = comp_mid_wind()
-    window_mask[y1:y2, x1:x2,:] = utils.resize(reshape_mask,[y2-y1, x2-x1,1])
-    visualize.display_instances(original_image, r['rois'], window_mask, r['class_ids'],
-                                dataset.class_names, r['scores'])
+        plt.show()
+        # Put the mask in the right location.
+        reshape_mask = utils.resize(bool_mask,[128,128,1])
+        visualize.display_instances(original_image, r['rois'], reshape_mask, r['class_ids'],
+                                    dataset.class_names, r['scores'])
+        window_mask = np.zeros([128,128,1], dtype=float)
+        y1, x1, y2, x2 = comp_mid_wind()
+        window_mask[y1:y2, x1:x2,:] = utils.resize(reshape_mask,[y2-y1, x2-x1,1])
+        visualize.display_instances(original_image, r['rois'], window_mask, r['class_ids'],
+                                    dataset.class_names, r['scores'])
 
-    gt_match, pred_match, overlaps = utils.compute_matches(
-        gt_bbox, gt_class_id, gt_mask,
-        r["rois"], r['class_ids'], r['scores'], r['masks'],
-        iou_threshold =0.5)
-    gt_match, pred_match, opt_overlaps = utils.compute_matches(
-        gt_bbox, gt_class_id, gt_mask,
-        r["rois"], r['class_ids'], r['scores'], reshape_mask,
-        iou_threshold=0.5)
-    print("image_id = ",image_id,"overlaps = ", overlaps, "opt_overlaps = ",opt_overlaps)
+        gt_match, pred_match, overlaps = utils.compute_matches(
+            gt_bbox, gt_class_id, gt_mask,
+            r["rois"], r['class_ids'], r['scores'], r['masks'],
+            iou_threshold =0.5)
+        gt_match, pred_match, opt_overlaps = utils.compute_matches(
+            gt_bbox, gt_class_id, gt_mask,
+            r["rois"], r['class_ids'], r['scores'], reshape_mask,
+            iou_threshold=0.5)
+        print("image_id = ",image_id,"overlaps = ", overlaps, "opt_overlaps = ",opt_overlaps)
 
-    # END
+        # END
 
     # 性能评估
 
     # 计算 VOC-Style mAP @ IoU=0.5
     # Intersection over Union
     iou_threshold = 0.5
-    image_ids = np.random.choice(dataset.image_ids, 10)
+    image_ids = np.random.choice(dataset.image_ids, 100)
     APs = []
     Ps = []
     Rs = []
@@ -989,7 +993,7 @@ def det_crack500(min2 = False):
 
 
         # TODO 计算opt_overlaps
-        if len(gt_bbox) < 1:
+        if len(gt_bbox) < 1 :
             continue
         y1, x1, y2, x2 = gt_bbox[0]
         masks = r["original_masks"][0][0, :, :, 1]  # (N,x,y,IDs)[scores]
@@ -997,7 +1001,7 @@ def det_crack500(min2 = False):
         full_mask = np.zeros(original_image.shape[:2], dtype=float)
         full_mask[y1:y2, x1:x2] = mask
         thresh2 = utils.resize(thresh, (128, 128))
-        mix_mask = full_mask * 0.55 + (255.0 - thresh2) * 0.45
+        mix_mask = full_mask * 0.6 + (255.0 - thresh2) * 0.4
         bool_mask = np.where(mix_mask > 0.5 * 255, 1, 0).astype(bool)
         reshape_mask = bool_mask.reshape([128, 128, 1])
 
@@ -1005,6 +1009,8 @@ def det_crack500(min2 = False):
             gt_bbox, gt_class_id, gt_mask,
             r["rois"], r['class_ids'], r['scores'], reshape_mask,
             iou_threshold=0.5)
+        if len(overlaps) < 1 or len(gt_match) < 1 or len(opt_overlaps) < 1:
+            continue
         OOLs.append(opt_overlaps)
         APs.append(AP)
         Ps.append(precisions[1])
@@ -1019,6 +1025,135 @@ def det_crack500(min2 = False):
     print(f"meanOverlaps @ IoU={iou_threshold*100}: ", np.mean(OLs))
     print(f"mAP @ IoU={iou_threshold*100}: ", np.mean(APs))
     print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs))
+
+def det_single():
+    """
+    随机检测和性能评估
+    :return:
+    """
+    # 准备数据集
+
+    # 创建推理配置
+
+    inference_config = InferenceConfig()
+
+    # 以推理模式恢复模型
+    model = modellib.MaskRCNN(mode="inference",
+                              config=inference_config,
+                              model_dir=MODEL_DIR)
+    # 获取保存的权重的路径
+    # TODO 可以设置为一个特定的权值的路径,也可以直接使用最后一次的权值
+    model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
+    # model_path = model.find_last()
+
+    # 加载训练好的权值
+    print("Loading weights from ", model_path)
+    model.load_weights(model_path, by_name=True)
+
+
+    # 加载图片和元数据
+    base_path = "F:\\360downloads\\CRACK500\\traincrop\\20160222_081031_1_721"
+    # base_path = "F:\\360downloads\\CRACK500\\traincrop\\20160307_145107_641_721"
+
+    img_path = base_path+".jpg"
+    mask_path = base_path+".png"
+    image = skimage.io.imread(img_path)
+    original_mask = skimage.io.imread(mask_path)
+
+    # original_image = np.resize(image,[128,128,3])
+    molded_image, window, scale, padding, crop = utils.resize_image(
+        image,
+        min_dim=128,
+        min_scale=0,
+        max_dim=128,
+        mode="square")
+    cvresize_img = cv2.resize(image,[128,128])
+    original_image = cvresize_img
+
+    #可视化原图
+
+    #进行推理
+    results = model.detect([cvresize_img], verbose=1)
+    #输入只有一张图片,
+    r = results[0]
+    #可视化原图+检测框+mask
+    float_masks = r['float_masks']
+    plt.figure("original_image",figsize=(12,8))
+    plt.subplot(221),    plt.imshow(molded_image),    plt.title("original_image")
+    plt.subplot(222),    plt.imshow(cvresize_img),    plt.title("cvresize_img")
+    plt.subplot(223),    plt.imshow(original_mask),    plt.title("original_mask")
+    plt.subplot(224),    plt.imshow(float_masks),    plt.title("float_mask")
+    plt.show()
+    boxes = np.zeros([1,4])
+    boxes[0,:] = [0,0,128,128]
+    class_ids = np.array([1])
+    scores = np.array([1.0])
+    mode_mask = utils.resize(original_mask, (128, 128,1))
+    visualize.display_instances(original_image, boxes, mode_mask, class_ids,
+                                ["bg", "crack"], scores)
+
+    visualize.display_instances(original_image, boxes, r["masks"], class_ids,
+                                ["bg", "crack"], scores)
+    # TODO
+
+    Otsu_path = img_path
+    Otsu_img = cv2.imread(Otsu_path, 0)
+    # threshold
+    height , width = Otsu_img.shape[:2]
+    # 高斯滤波后再采用Otsu阈值
+    blur = cv2.GaussianBlur(Otsu_img, (height//16 *2 +1, width//16 *2 +1), 0)
+    ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    plt.figure('adaptive threshold', figsize=(12, 8))
+    plt.subplot(331), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
+    plt.subplot(337), plt.imshow(blur, cmap='gray'), plt.title('blur')
+    plt.subplot(334), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
+    # plt.show()
+
+    # plt.imshow(r["original_masks"][0][0, :, :, 0])
+    # plt.imshow(r["original_masks"][0][1, :, :, 0])
+
+    masks = r["original_masks"][0][0, :, :, 1]  # (N,x,y,IDs)[scores]
+    threshold = 0.5
+
+    # mask = np.where(mask >= threshold, 1, 0).astype(np.bool)
+    # Put the mask in the right location.
+    # 调整至检测框
+    # Put the mask in the right location.
+    y1, x1, y2, x2 = r['rois'][0]
+
+    full_mask = np.zeros(original_image.shape[:2], dtype=float)
+    mask = utils.resize(masks, [y2-y1, x2-x1])
+    full_mask[y1:y2, x1:x2] = mask
+    # plt.imshow(full_mask, cmap='gray')
+    plt.subplot(333), plt.imshow(masks, cmap='gray'), plt.title('original_masks')
+    plt.subplot(332), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+
+    thresh2 = utils.resize(thresh,(128,128))
+    # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
+
+    # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
+    alpha = 0.55
+    mix_mask = full_mask*alpha + (255.0-thresh2)*(1-alpha)
+    bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
+    plt.subplot(335), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
+    plt.subplot(336), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+
+    plt.show()
+
+
+    # reshape_mask = utils.resize(bool_mask,[128,128,1])
+    # visualize.display_instances(original_image, r['rois'], reshape_mask, r['class_ids'],
+    #                             ["bg","crack"], r['scores'])
+    # window_mask = np.zeros([128,128,1], dtype=float)
+    # window_mask[y1:y2, x1:x2,:] = utils.resize2(mix_mask,[y2-y1, x2-x1,1])
+    # window_bool_mask = np.where(window_mask > 0.5*255 , 1 , 0 ).astype(bool)
+
+    visualize.display_instances(original_image, r['rois'], np.reshape(bool_mask,[128,128,1]), r['class_ids'],
+                                ["bg","crack"], r['scores'])
+
+
+
+    # END
 
 def check_crack500():
     dataset_train = Crack500Dataset()
@@ -1046,6 +1181,7 @@ if __name__ == '__main__':
     # train(20)
     # det()
     # config.display()
-    det_crack500(min2 = True)
+    # det_crack500(min2 = True)
+    det_single()
 
 
