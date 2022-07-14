@@ -2494,8 +2494,8 @@ class MaskRCNN():
             float_masks.append(float_mask)
         full_masks = np.stack(full_masks, axis=-1)\
             if full_masks else np.empty(original_image_shape[:2] + (0,))
-        float_masks = np.stack(float_masks, axis=-1) \
-            if float_masks else np.empty(original_image_shape[:2] + (0,))
+        # float_masks = np.stack(float_masks, axis=-1) \
+        #     if float_masks else np.empty(original_image_shape[:2] + (0,))
 
         return boxes, class_ids, scores, full_masks, float_masks
 

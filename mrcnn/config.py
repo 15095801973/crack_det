@@ -211,7 +211,7 @@ class Config(object):
     GRADIENT_CLIP_NORM = 5.0
 
     # TODO myconfig
-    GaussianBlurFactor = 20
+    GaussianBlurFactor = 32
     MixAlpha = 0.501
 
     def __init__(self):
