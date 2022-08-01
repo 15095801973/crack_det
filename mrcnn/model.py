@@ -282,9 +282,7 @@ class ProposalLayer(KE.Layer):
         deltas = deltas * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
         # Anchors
         anchors = inputs[2]
-        print(tf.shape(scores))
-        print(tf.shape(deltas))
-        print("call")
+
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
         pre_nms_limit = tf.minimum(self.config.PRE_NMS_LIMIT, tf.shape(anchors)[1])
@@ -294,8 +292,7 @@ class ProposalLayer(KE.Layer):
                                    self.config.IMAGES_PER_GPU)
         deltas = utils.batch_slice([deltas, ix], lambda x, y: tf.gather(x,y),
                                    self.config.IMAGES_PER_GPU)
-        print(tf.shape(scores))
-        print(tf.shape(deltas))
+
         pre_nms_anchors = utils.batch_slice([anchors, ix], lambda a, x: tf.gather(a,x),
                                     self.config.IMAGES_PER_GPU,
                                     names=["pre_nms_anchors"])
@@ -325,8 +322,7 @@ class ProposalLayer(KE.Layer):
                 boxes, scores, self.proposal_count,
                 self.nms_threshold, name="rpn_non_max_suppression")
             
-            print(tf.shape(boxes))
-            print(tf.shape(indices))
+
             proposals = tf.gather(boxes, indices)
             # Pad if needed
             padding = tf.maximum(self.proposal_count - tf.shape(proposals)[0], 0)
@@ -403,7 +399,6 @@ class PyramidROIAlign(KE.Layer):
         # Loop through levels and apply ROI pooling to each. P2 to P5.
         pooled = []
         box_to_level = []
-        print("call2")
         for i, level in enumerate(range(2, 6)):
             ix = tf.where(tf.equal(roi_level, level))
             level_boxes = tf.gather_nd(boxes, ix)

@@ -84,7 +84,50 @@ class CracksConfig(Config):
 
     # 每个epoch验证多少次
     VALIDATION_STEPS = 5
-config = CracksConfig()
+class CracksConfig2(Config):
+    """训练混凝土表面裂缝检测模型时的配置.
+    """
+    # 给予这个配置一个易于识别的名称
+    NAME = "cracks"
+
+    # 在一个GPU上训练,并且每个GPU每次只训练一张图片
+    # 为了避免显存不足,尽量往小的方向配置
+    GPU_COUNT = 1
+    IMAGES_PER_GPU = 1
+
+    # 类别数量,实体+背景,这里只考虑混凝土裂缝和背景
+    NUM_CLASSES = 1 + 1
+
+    # 使用小尺寸的图片以便训练得更快,训练前将其全部调整为128x128大小
+    IMAGE_MIN_DIM = 128
+    IMAGE_MAX_DIM = 128
+
+    # 因为数据集是混凝土表面裂缝,往往贯穿整个图片,所以必须
+    # 至少设置一个128的anchors才能捕获
+    # RPN_ANCHOR_SCALES = (32, 64, 128, 256, 512)
+    # RPN_ANCHOR_SCALES = (4, 8, 16, 32, 64)
+    RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
+
+
+    # BACKBONE_STRIDES = [8, 16, 32, 64, 128]
+    # POOL_SIZE = 14
+    MASK_POOL_SIZE = 14
+
+    MASK_SHAPE = [28, 28]
+
+    # 每张图片的训练感兴趣区域,不需要太大,训练集里一张图片只有一两条裂缝
+    # 至少我标注得是这样,对于一些形状丰富的可能需要几个检测才能满足
+    # 能够保证取到正感兴趣区域.
+    TRAIN_ROIS_PER_IMAGE = 50
+
+    # 每个epoch训练多少次
+    STEPS_PER_EPOCH = 100
+
+    # 每个epoch验证多少次
+    VALIDATION_STEPS = 5
+
+config = CracksConfig2()
+
 class InferenceConfig(CracksConfig):
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
@@ -695,6 +738,7 @@ def det(dataset_name = "crack500"):
 
 
     # 在随机的图片上进行测试
+    # TODO
     dataset = dataset_val
     image_id = random.choice(dataset.image_ids)
     # image_id = 14
@@ -722,107 +766,191 @@ def det(dataset_name = "crack500"):
 
     # TODO
 
-    Otsu_path = dataset.image_info[image_id]["path"]
-    Otsu_img = cv2.imread(Otsu_path, 0)
-    # threshold
-    height , width = Otsu_img.shape[:2]
-    # 高斯滤波后再采用Otsu阈值
-    blur = cv2.GaussianBlur(Otsu_img,
-                            (height // Config.GaussianBlurFactor * 2 + 1, width // Config.GaussianBlurFactor * 2 + 1),
-                            0)
-    blur_cons5 = cv2.GaussianBlur(Otsu_img, (5, 5), 0)
-    ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    ret2, thresh_cons5 = cv2.threshold(blur_cons5, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    plt.figure('adaptive threshold', figsize=(12, 12))
-    plt.subplot(331), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
-    plt.subplot(337), plt.imshow(blur, cmap='gray'), plt.title('blur')
-    plt.subplot(338), plt.imshow(blur_cons5, cmap='gray'), plt.title('blur_cons5')
-    plt.subplot(339), plt.imshow(thresh_cons5, cmap='gray'), plt.title('thresh_cons5')
-    plt.subplot(334), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
-
-    # blur = cv2.GaussianBlur(Otsu_img, (height//16 *2 +1, width//16 *2 +1), 0)
+    # Otsu_path = dataset.image_info[image_id]["path"]
+    # Otsu_img = cv2.imread(Otsu_path, 0)
+    # # threshold
+    # height , width = Otsu_img.shape[:2]
+    # # 高斯滤波后再采用Otsu阈值
+    # blur = cv2.GaussianBlur(Otsu_img,
+    #                         (height // Config.GaussianBlurFactor * 2 + 1, width // Config.GaussianBlurFactor * 2 + 1),
+    #                         0)
+    # blur_cons5 = cv2.GaussianBlur(Otsu_img, (5, 5), 0)
     # ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # ret2, thresh_cons5 = cv2.threshold(blur_cons5, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     # plt.figure('adaptive threshold', figsize=(12, 12))
     # plt.subplot(331), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
     # plt.subplot(337), plt.imshow(blur, cmap='gray'), plt.title('blur')
-    #
+    # plt.subplot(338), plt.imshow(blur_cons5, cmap='gray'), plt.title('blur_cons5')
+    # plt.subplot(339), plt.imshow(thresh_cons5, cmap='gray'), plt.title('thresh_cons5')
     # plt.subplot(334), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
+    #
+    # # blur = cv2.GaussianBlur(Otsu_img, (height//16 *2 +1, width//16 *2 +1), 0)
+    # # ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # # plt.figure('adaptive threshold', figsize=(12, 12))
+    # # plt.subplot(331), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
+    # # plt.subplot(337), plt.imshow(blur, cmap='gray'), plt.title('blur')
+    # #
+    # # plt.subplot(334), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
+    # # plt.show()
+    #
+    # # plt.imshow(r["original_masks"][0][0, :, :, 0])
+    # # plt.imshow(r["original_masks"][0][1, :, :, 0])
+    #
+    # masks = r["original_masks"][0][0, :, :, 1]  # (N,x,y,IDs)[scores]
+    # threshold = 0.5
+    # y1, x1, y2, x2 = gt_bbox[0]
+    # mask = utils.resize(masks, (y2 - y1, x2 - x1))
+    # # mask = np.where(mask >= threshold, 1, 0).astype(np.bool)
+    #
+    # # Put the mask in the right location.
+    # full_mask = np.zeros(original_image.shape[:2], dtype=np.float)
+    # full_mask[y1:y2, x1:x2] = mask
+    # # plt.imshow(full_mask, cmap='gray')
+    # plt.subplot(333), plt.imshow(masks, cmap='gray'), plt.title('original_masks')
+    # plt.subplot(332), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+    #
+    # thresh2 = utils.resize(thresh,(128,128))
+    # # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
+    #
+    # # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
+    # alpha = config.MixAlpha
+    # mix_mask = full_mask*alpha + (255.0-thresh2)*(1-alpha)
+    # bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
+    # plt.subplot(335), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
+    # plt.subplot(336), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+    #
     # plt.show()
+    N = r["rois"].shape[0]
 
-    # plt.imshow(r["original_masks"][0][0, :, :, 0])
-    # plt.imshow(r["original_masks"][0][1, :, :, 0])
+    def mix_thresh(image_id,float_masks,image_meta , verbose = False):
+        N = len(float_masks)
+        final_mask = np.zeros([128, 128, N]).astype(bool)
+        for i in range(N):
+            float_mask = float_masks[i]
+            min_v = float_mask.min()
+            max_v = float_mask.max()
+            float_mask = (float_mask - min_v) * 255.0 / (max_v - min_v)
+            Otsu_path = dataset.image_info[image_id]["path"]
+            Otsu_img = cv2.imread(Otsu_path, 0)
+            # threshold
+            height, width = Otsu_img.shape[:2]
+            # 高斯滤波后再采用Otsu阈值
+            blur = cv2.GaussianBlur(Otsu_img, (
+            height // Config.GaussianBlurFactor * 2 + 1, width // Config.GaussianBlurFactor * 2 + 1), 0)
+            blur_cons5 = cv2.GaussianBlur(Otsu_img, (5, 5), 0)
+            ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            ret2, thresh_cons5 = cv2.threshold(blur_cons5, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            if verbose:
+                plt.figure('mix threshold', figsize=(12, 16))
+                plt.subplot(341), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
+                plt.subplot(347), plt.imshow(blur, cmap='gray'), plt.title('blur')
+                plt.subplot(348), plt.imshow(blur_cons5, cmap='gray'), plt.title('blur_cons5')
+                plt.subplot(349), plt.imshow(thresh_cons5, cmap='gray'), plt.title('thresh_cons5')
+                plt.subplot(344), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
+                plt.subplot(342), plt.imshow(float_mask), plt.title("float_mask")
+            # plt.imshow(r["original_masks"][0][0, :, :, 0])
+            # plt.imshow(r["original_masks"][0][1, :, :, 0])
 
-    masks = r["original_masks"][0][0, :, :, 1]  # (N,x,y,IDs)[scores]
-    threshold = 0.5
-    y1, x1, y2, x2 = gt_bbox[0]
-    mask = utils.resize(masks, (y2 - y1, x2 - x1))
-    # mask = np.where(mask >= threshold, 1, 0).astype(np.bool)
+            masks = r["original_masks"][0][i, :, :, 1]  # (N,x,y,IDs)[scores]
+            threshold = 0.5
 
+            # mask = np.where(mask >= threshold, 1, 0).astype(np.bool)
+            # Put the mask in the right location.
+            # 调整至检测框
+            # Put the mask in the right location.
+            y1, x1, y2, x2 = r['rois'][i]
+
+            full_mask = np.zeros(original_image.shape[:2], dtype=float)
+            mask = utils.resize(masks, [y2 - y1, x2 - x1])
+            full_mask[y1:y2, x1:x2] = float_mask[:, :]
+            # plt.imshow(full_mask, cmap='gray')
+            if verbose:
+                plt.subplot(343), plt.imshow(masks, cmap='gray'), plt.title('original_size_masks')
+                plt.subplot(345), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+            y1, x1, y2, x2 = window = image_meta[7:11].astype(int)
+            # 灰度图缩放到窗口
+            thresh2 = np.ones([128,128])*255.0
+            thresh2[y1:y2, x1:x2] = utils.resize(thresh, [y2 - y1, x2 - x1])
+
+
+            # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
+
+            # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
+            alpha = Config.MixAlpha
+            shift = Config.MixShift
+            beta = Config.MixBeta
+            mix_mask = full_mask * alpha + (255.0 - thresh2 - shift) *beta
+            bool_mask = np.where(mix_mask > 0.5 * 255, 1, 0).astype(bool)
+            if verbose:
+                plt.subplot(3,4,10), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
+                plt.subplot(3,4,11), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+                plt.show()
+            final_mask[:, :, i] = bool_mask
+
+            # y1, x1, y2, x2  = window = image_meta[7:11].astype(int)
+            # final_mask[y1:y2, x1:x2, i] = utils.resize(bool_mask,[y2 - y1, x2 - x1])
+
+        return final_mask
+
+    final_mask = mix_thresh(image_id,r['float_masks'],image_meta)
     # Put the mask in the right location.
-    full_mask = np.zeros(original_image.shape[:2], dtype=np.float)
-    full_mask[y1:y2, x1:x2] = mask
-    # plt.imshow(full_mask, cmap='gray')
-    plt.subplot(333), plt.imshow(masks, cmap='gray'), plt.title('original_masks')
-    plt.subplot(332), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
 
-    thresh2 = utils.resize(thresh,(128,128))
-    # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
+    # reshape_mask = bool_mask.reshape([128,128,1])
 
-    # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
-    alpha = 0.51
-    mix_mask = full_mask*alpha + (255.0-thresh2)*(1-alpha)
-    bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
-    plt.subplot(335), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
-    plt.subplot(336), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+    #TODO integrate_mask
+    is_integrate = True
+    if is_integrate:
+        integrate_mask = np.zeros([128,128,1]).astype(bool)
+        for i in range(r['masks'].shape[-1]):
+            integrate_mask[:,:,0] = integrate_mask[:,:,0] | r['masks'][:,:,i]
+            # integrate_mask = np.where(r['masks'][:,:,i], True, integrate_mask[:,:,i])
+        integrate_mask_overlap = utils.compute_overlaps_masks(integrate_mask,gt_mask)
+        print(f'integrate_mask_overlap = {integrate_mask_overlap}')
+        canv = np.zeros([128, 128, 3])
+        canv[:, :, 0] = integrate_mask[:, :, 0]
+        canv[:, :, 1] = gt_mask[:, :, 0]
+        plt.imshow(canv)
+        plt.title("integrate_mask_and_gt_mask_IOU")
+        plt.show()
+    else:
+        print(f'no_integrate')
 
-    plt.show()
-    # Put the mask in the right location.
-    reshape_mask = bool_mask.reshape([128,128,1])
+    visualize.display_instances(original_image, r['rois'], final_mask, r['class_ids'],
+                                dataset.class_names, r['scores'])
+
     gt_match, pred_match, overlaps = utils.compute_matches(
         gt_bbox, gt_class_id, gt_mask,
         r["rois"], r['class_ids'], r['scores'], r['masks'],
-        iou_threshold =0.5)
-    print(f'overlaps = {overlaps}')
-    #TODO integrate_mask
-    integrate_mask = np.zeros([128,128,1]).astype(bool)
-    for i in range(r['masks'].shape[-1]):
-        integrate_mask[:,:,0] = integrate_mask[:,:,0] | r['masks'][:,:,i]
-        # integrate_mask = np.where(r['masks'][:,:,i], True, integrate_mask[:,:,i])
-    integrate_mask_overlap = utils.compute_overlaps_masks(integrate_mask,gt_mask)
-    print(f'integrate_mask_overlap = {integrate_mask_overlap}')
-    canv = np.zeros([128, 128, 3])
-    canv[:, :, 0] = integrate_mask[:, :, 0]
-    canv[:, :, 1] = gt_mask[:, :, 0]
-    plt.imshow(canv)
-    plt.title("integrate_mask_and_gt_mask_IOU")
-    plt.show()
-
-    visualize.display_instances(original_image, r['rois'], reshape_mask, r['class_ids'],
-                                dataset.class_names, r['scores'])
-
-
+        iou_threshold = config.iou_threshold)
     gt_match, pred_match, opt_overlaps = utils.compute_matches(
         gt_bbox, gt_class_id, gt_mask,
-        r["rois"], r['class_ids'], r['scores'], reshape_mask,
-        iou_threshold=0.5)
-    print("image_id = ",image_id,"overlaps = ", overlaps, "opt_overlaps = ",opt_overlaps)
+        r["rois"], r['class_ids'], r['scores'], final_mask,
+        iou_threshold = config.iou_threshold)
+    print(f"image_id = {image_id},path={dataset.image_info[image_id]['path']},overlaps = {overlaps},opt_overlaps = {opt_overlaps}")
     # END
 
     # 性能评估
 
     # 计算 VOC-Style mAP @ IoU=0.5
     # Intersection over Union
-    iou_threshold = 0.5
+    iou_threshold = config.iou_threshold
     image_ids = np.random.choice(dataset.image_ids, 10)
     APs = []
     Ps = []
     Rs = []
+    # OAPs = []
+    # OPs = []
+    # ORs = []
     OLs = []
     OOLs = []
+    IOOLs = []
+    TPs = RMs = PMs = 0
+
+    visual = True
     for image_id in image_ids:
         # 加载图片和元数据
         image, image_meta, gt_class_id, gt_bbox, gt_mask = \
-            modellib.load_image_gt(dataset_val, inference_config,
+            modellib.load_image_gt(dataset, inference_config,
                                    image_id, use_mini_mask=False)
         molded_images = np.expand_dims(modellib.mold_image(image, inference_config), 0)
         # 运行对象检测
@@ -830,10 +958,38 @@ def det(dataset_name = "crack500"):
         r = results[0]
 
 
+        opt_mask = mix_thresh(image_id,r['float_masks'],image_meta)
+        if visual:
+            # 可视化原图
+            visualize.display_instances(image, gt_bbox, gt_mask, gt_class_id,
+                                        dataset.class_names, figsize=(8, 8))
+            # 可视化原图+检测框+mask
+            visualize.display_instances(image, r['rois'], r['masks'], r['class_ids'],
+                                        dataset.class_names, r['scores'])
+            visualize.display_instances(image, r['rois'], opt_mask, r['class_ids'],
+                                        dataset.class_names, r['scores'])
 
         # visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'],
         #                             dataset_val.class_names, r['scores'])
         # 计算AP
+        is_integrate = True
+        if is_integrate:
+            integrate_mask = np.zeros([128, 128, 1]).astype(bool)
+            for i in range(opt_mask.shape[-1]):
+                integrate_mask[:, :, 0] = integrate_mask[:, :, 0] | opt_mask[:, :, i]
+                # integrate_mask = np.where(r['masks'][:,:,i], True, integrate_mask[:,:,i])
+            integrate_mask_overlap = utils.compute_overlaps_masks(integrate_mask, gt_mask)
+            print(f'integrate_mask_overlap = {integrate_mask_overlap}')
+
+            if visual:
+                canv = np.zeros([128, 128, 3])
+                canv[:, :, 0] = integrate_mask[:, :, 0]
+                canv[:, :, 1] = gt_mask[:, :, 0]
+                plt.imshow(canv)
+                plt.title(f"integrate_mask_and_gt_mask_IOU,id={image_id}")
+                plt.show()
+        else:
+            print(f'no_integrate')
         AP, precisions, recalls, overlaps = \
             utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
                              r["rois"], r["class_ids"], r["scores"], r['masks'],iou_threshold=iou_threshold)
@@ -842,33 +998,42 @@ def det(dataset_name = "crack500"):
         APs.append(AP)
         Ps.append(precisions[1])
         Rs.append(recalls[1])
-        OLs.append(overlaps)
-
+        OLs.append(overlaps.max())
+        IOOLs.append(integrate_mask_overlap.max())
         # TODO 计算opt_overlaps
-        masks = r["original_masks"][0][0, :, :, 1]  # (N,x,y,IDs)[scores]
-        y1, x1, y2, x2 = gt_bbox[0]
-        mask = utils.resize(masks, (y2 - y1, x2 - x1))
-        full_mask = np.zeros(original_image.shape[:2], dtype=float)
-        full_mask[y1:y2, x1:x2] = mask
-        thresh2 = utils.resize(thresh, (128, 128))
-        mix_mask = full_mask * 0.55 + (255.0 - thresh2) * 0.45
-        bool_mask = np.where(mix_mask > 0.5 * 255, 1, 0).astype(bool)
-        reshape_mask = bool_mask.reshape([128, 128, 1])
 
         gt_match, pred_match, opt_overlaps = utils.compute_matches(
             gt_bbox, gt_class_id, gt_mask,
-            r["rois"], r['class_ids'], r['scores'], reshape_mask,
-            iou_threshold=0.5)
-        OOLs.append(opt_overlaps)
+            r["rois"], r['class_ids'], r['scores'], opt_mask,
+            iou_threshold=iou_threshold)
+        # AP, precisions, recalls, opt_overlaps = \
+        #     utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
+        #                      r["rois"], r["class_ids"], r["scores"], opt_mask,iou_threshold=iou_threshold)
+        OOLs.append(opt_overlaps.max())
+        # OAPs.append(AP)
+        # OPs.append(precisions[1])
+        # ORs.append(recalls[1])
 
-        print(f'id:{image_id}, AP:{AP}, precisions:{precisions}, recalls:{recalls}, overlaps:{overlaps}, opt_overlaps:{opt_overlaps}')
+        print(f'id:{image_id},path={dataset.image_info[image_id]["path"]}, AP:{AP}, precisions:{precisions}, recalls:{recalls}, overlaps:{overlaps}, opt_overlaps:{opt_overlaps}')
+        maxi = opt_overlaps.argmax()
+        TP = np.sum((opt_mask[:,:,maxi] & gt_mask[:,:,0]))
 
+        PM = np.sum(gt_mask)
+        RM = np.sum(opt_mask[:,:,maxi])
+        TPs += TP
+        PMs += PM
+        RMs += RM
+        print(f'current precision:{TP / PM},recall:{TP / RM}')
 
     print(f"meanRecall @ IoU={iou_threshold*100}: ", np.mean(Rs))
     print(f"meanPrecision @ IoU={iou_threshold*100}: ", np.mean(Ps))
     print(f"meanOverlaps @ IoU={iou_threshold*100}: ", np.mean(OLs))
     print(f"mAP @ IoU={iou_threshold*100}: ", np.mean(APs))
-    print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs))
+    print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs),OOLs)
+    print(f"integrate_mask_overlap @ IoU={iou_threshold*100}: ", np.mean(IOOLs),IOOLs)
+    print(f'global precision:{TPs / PMs},recall:{TPs / RMs}')
+
+    x = 1
 
 def simple_det(dataset_name = "crack500"):
     """
@@ -938,12 +1103,14 @@ def simple_det(dataset_name = "crack500"):
 
     # 计算 VOC-Style mAP @ IoU=0.5
     # Intersection over Union
-    iou_threshold = 0.5
-    image_ids = np.random.choice(dataset.image_ids, 10)
+    iou_threshold = config.iou_threshold
+    image_ids = np.random.choice(dataset.image_ids, 100)
     APs = []
     Ps = []
     Rs = []
     OLs = []
+    TPs = RMs = PMs = 0
+
     OOLs = []
     for image_id in image_ids:
         # 加载图片和元数据
@@ -984,6 +1151,15 @@ def simple_det(dataset_name = "crack500"):
         #     iou_threshold=0.5)
         # OOLs.append(opt_overlaps)
         # end
+        maxi = overlaps.argmax()
+        TP = np.sum((r['masks'][:, :, maxi] & gt_mask[:, :, 0]))
+
+        PM = np.sum(gt_mask)
+        RM = np.sum(r['masks'][:, :, maxi])
+        TPs += TP
+        PMs += PM
+        RMs += RM
+        print(f'current precision:{TP / PM},recall:{TP / RM}')
 
         print(f'id:{image_id}, AP:{AP}, precisions:{precisions}, recalls:{recalls}, overlaps:{overlaps}')
 
@@ -992,6 +1168,7 @@ def simple_det(dataset_name = "crack500"):
     print(f"meanOverlaps @ IoU={iou_threshold*100}: ", np.mean([a.max() for a in OLs]))
     print(f"mAP @ IoU={iou_threshold*100}: ", np.mean(APs))
     # print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs))
+    print(f'global precision:{TPs / PMs},recall:{TPs / RMs}')
 
 def det_crack500(min2 = False):
     """
@@ -1128,11 +1305,11 @@ def det_crack500(min2 = False):
         gt_match, pred_match, overlaps = utils.compute_matches(
             gt_bbox, gt_class_id, gt_mask,
             r["rois"], r['class_ids'], r['scores'], r['masks'],
-            iou_threshold =0.5)
+            iou_threshold =config.iou_threshold)
         gt_match, pred_match, opt_overlaps = utils.compute_matches(
             gt_bbox, gt_class_id, gt_mask,
             r["rois"], r['class_ids'], r['scores'], reshape_mask,
-            iou_threshold=0.5)
+            iou_threshold=config.iou_threshold)
         print("image_id = ",image_id,"overlaps = ", overlaps, "opt_overlaps = ",opt_overlaps)
 
         # END
@@ -1141,7 +1318,7 @@ def det_crack500(min2 = False):
 
     # 计算 VOC-Style mAP @ IoU=0.5
     # Intersection over Union
-    iou_threshold = 0.5
+    iou_threshold = config.iou_threshold
     image_ids = np.random.choice(dataset.image_ids, 100)
     APs = []
     Ps = []
@@ -1186,7 +1363,7 @@ def det_crack500(min2 = False):
         gt_match, pred_match, opt_overlaps = utils.compute_matches(
             gt_bbox, gt_class_id, gt_mask,
             r["rois"], r['class_ids'], r['scores'], reshape_mask,
-            iou_threshold=0.5)
+            iou_threshold=config.iou_threshold)
         if len(overlaps) < 1 or len(gt_match) < 1 or len(opt_overlaps) < 1:
             continue
         OOLs.append(opt_overlaps)
@@ -1213,7 +1390,8 @@ def load_infer_model(init_with_last = False):
                               model_dir=MODEL_DIR)
     # 获取保存的权重的路径
     # TODO 可以设置为一个特定的权值的路径,也可以直接使用最后一次的权值
-    model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
+    # model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
+    model_path = os.path.join(ROOT_DIR, "logs/cracks20220714T1112/mask_rcnn_cracks_0140.h5")
     # model_path = model.find_last()
     if init_with_last:
         model_path = model.find_last()
@@ -1248,6 +1426,7 @@ def det_single(base_path = None):
     # 加载图片和元数据
     # base_path = "F:\\360downloads\\CRACK500\\traincrop\\20160222_081031_1_721"
     # base_path = "F:\\360downloads\\CRACK500\\traincrop\\20160307_145107_641_721"
+
     if base_path == None:
         base_path = "F:\\new_work\\concrete_crack\\test\\test1"
     img_path = base_path+".jpg"
@@ -1256,13 +1435,14 @@ def det_single(base_path = None):
     original_mask = skimage.io.imread(mask_path)
 
     # original_image = np.resize(image,[128,128,3])
+    DIM = config.IMAGE_MAX_DIM
     molded_image, window, scale, padding, crop = utils.resize_image(
         image,
-        min_dim=128,
+        min_dim=DIM,
         min_scale=0,
-        max_dim=128,
+        max_dim=DIM,
         mode="square")
-    cvresize_img = cv2.resize(image,[128,128])
+    cvresize_img = cv2.resize(image,[DIM,DIM])
     original_image = cvresize_img
 
     #可视化原图
@@ -1274,6 +1454,7 @@ def det_single(base_path = None):
     #可视化原图+检测框+mask
     float_masks = r['float_masks']
     if len(float_masks) == 0:
+        print("None detection")
         return None
 
     plt.figure("original_image",figsize=(12,8))
@@ -1282,47 +1463,47 @@ def det_single(base_path = None):
     plt.subplot(223),    plt.imshow(original_mask),    plt.title("original_mask")
     plt.show()
     boxes = np.zeros([1,4])
-    boxes[0,:] = [0,0,128,128]
+    boxes[0,:] = [0,0,DIM,DIM]
     class_ids = np.array([1])
     scores = np.array([1.0])
-    mode_mask = utils.resize(original_mask, (128, 128,1))
+    mode_mask = utils.resize(original_mask, (DIM, DIM,1))
     visualize.display_instances(original_image, boxes, mode_mask, class_ids,
                                 ["bg", "crack"], scores)
 
-    single_mask_temp = np.reshape(r["masks"][:,:,0],[128,128,1])
+    single_mask_temp = np.reshape(r["masks"][:,:,0],[DIM,DIM,1])
     visualize.display_instances(original_image, r["rois"], r["masks"], r["class_ids"],
                                 ["bg", "crack"], r["scores"])
     # TODO
     overlaps1 = utils.compute_overlaps_masks(mode_mask,r["masks"])
     print(f'overlaps_mode_mask_ = {overlaps1}')
-    def mix_thresh():
-        N = r["rois"].shape[0]
-        final_mask = np.zeros([128,128,N]).astype(bool)
+    N = r["rois"].shape[0]
 
+    def mix_thresh( float_masks, image_meta, verbose=True):
+        N = len(float_masks)
+        final_mask = np.zeros([DIM, DIM, N]).astype(bool)
         for i in range(N):
             float_mask = float_masks[i]
-            min = float_mask.min()
-            max = float_mask.max()
-            float_mask = (float_mask - min) * 255.0 / (max - min)
+            # min_v = float_mask.min()
+            # max_v = float_mask.max()
+            # float_mask = (float_mask - min_v) * 255.0 / (max_v - min_v)
             Otsu_path = img_path
             Otsu_img = cv2.imread(Otsu_path, 0)
             # threshold
-            height , width = Otsu_img.shape[:2]
+            height, width = Otsu_img.shape[:2]
             # 高斯滤波后再采用Otsu阈值
-            blur = cv2.GaussianBlur(Otsu_img, (height//Config.GaussianBlurFactor *2 +1, width//Config.GaussianBlurFactor *2 +1), 0)
-            blur_cons5 = cv2.GaussianBlur(Otsu_img, (5,5), 0)
+            core_size = np.min([height,width])// Config.GaussianBlurFactor * 2 + 1
+            blur = cv2.GaussianBlur(Otsu_img, ( core_size, core_size), 0)
+            blur_cons5 = cv2.GaussianBlur(Otsu_img, (5, 5), 0)
             ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             ret2, thresh_cons5 = cv2.threshold(blur_cons5, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            plt.figure('mix threshold', figsize=(12, 12))
-            plt.subplot(331), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
-            plt.subplot(337), plt.imshow(blur, cmap='gray'), plt.title('blur')
-            plt.subplot(338), plt.imshow(blur_cons5, cmap='gray'), plt.title('blur_cons5')
-            plt.subplot(339), plt.imshow(thresh_cons5, cmap='gray'), plt.title('thresh_cons5')
-            plt.subplot(334), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
-            plt.subplot(332), plt.imshow(float_mask), plt.title("float_mask")
-
-            plt.show()
-
+            if verbose:
+                plt.figure('mix threshold', figsize=(12, 16))
+                plt.subplot(341), plt.imshow(Otsu_img, cmap='gray'), plt.title('original')
+                plt.subplot(347), plt.imshow(blur, cmap='gray'), plt.title('blur')
+                plt.subplot(348), plt.imshow(blur_cons5, cmap='gray'), plt.title('blur_cons5')
+                plt.subplot(349), plt.imshow(thresh_cons5, cmap='gray'), plt.title('thresh_cons5')
+                plt.subplot(344), plt.imshow(thresh, cmap='gray'), plt.title('otsu')
+                plt.subplot(342), plt.imshow(float_mask), plt.title("float_mask")
             # plt.imshow(r["original_masks"][0][0, :, :, 0])
             # plt.imshow(r["original_masks"][0][1, :, :, 0])
 
@@ -1336,26 +1517,39 @@ def det_single(base_path = None):
             y1, x1, y2, x2 = r['rois'][i]
 
             full_mask = np.zeros(original_image.shape[:2], dtype=float)
-            mask = utils.resize(masks, [y2-y1, x2-x1])
-            full_mask[y1:y2, x1:x2] = float_mask[:,:]
+            mask = utils.resize(masks, [y2 - y1, x2 - x1])
+            full_mask[y1:y2, x1:x2] = float_mask[:, :]
             # plt.imshow(full_mask, cmap='gray')
-            plt.subplot(333), plt.imshow(masks, cmap='gray'), plt.title('original_size_masks')
-            plt.subplot(332), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+            if verbose:
+                plt.subplot(343), plt.imshow(masks, cmap='gray'), plt.title('original_size_masks')
+                plt.subplot(345), plt.imshow(full_mask, cmap='gray'), plt.title('full_mask')
+            # TODO
+            y1, x1, y2, x2 = 0,0,DIM,DIM #window = image_meta[7:11].astype(int)
+            # 灰度图缩放到窗口
+            thresh2 = np.ones([DIM, DIM]) * 255.0
+            thresh2[y1:y2, x1:x2] = utils.resize(thresh, [y2 - y1, x2 - x1])
 
-            thresh2 = utils.resize(thresh,(128,128))
             # bool_mask = np.zeros(original_image.shape[:2], dtype=np.bool)
 
             # bool_mask = np.where( (thresh2==1 and full_mask >= 0.5) or (thresh2==0 and full_mask >=0.9), 1, 0).astype(np.bool)
             alpha = Config.MixAlpha
-            mix_mask = full_mask*alpha + (255.0-thresh2)*(1-alpha)
-            bool_mask = np.where(mix_mask > 0.5*255 , 1 , 0 ).astype(bool)
-            plt.subplot(335), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
-            plt.subplot(336), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
-            plt.show()
-            final_mask[:,:,i] = bool_mask
+            shift = Config.MixShift
+            beta = Config.MixBeta
+            mix_mask = full_mask * alpha + (255.0 - thresh2 - shift) * beta
+            bool_mask = np.where(mix_mask > 0.5 * 255, 1, 0).astype(bool)
+            if verbose:
+                plt.subplot(3, 4, 10), plt.imshow(mix_mask, cmap='gray'), plt.title('mix_mask')
+                plt.subplot(3, 4, 11), plt.imshow(bool_mask, cmap='gray'), plt.title('bool_mask')
+                plt.show()
+            final_mask[:, :, i] = bool_mask
+
+            # y1, x1, y2, x2  = window = image_meta[7:11].astype(int)
+            # final_mask[y1:y2, x1:x2, i] = utils.resize(bool_mask,[y2 - y1, x2 - x1])
+
         return final_mask
 
-    final_mask = mix_thresh()
+    final_mask = mix_thresh(float_masks,[0,0,DIM,DIM])
+
     # reshape_mask = utils.resize(bool_mask,[128,128,1])
     # visualize.display_instances(original_image, r['rois'], reshape_mask, r['class_ids'],
     #                             ["bg","crack"], r['scores'])
@@ -1495,16 +1689,18 @@ def split_eval(name):
 
 if __name__ == '__main__':
     # print_hi('PyCharm')
-    load_infer_model(init_with_last= True)
+    # load_infer_model(init_with_last = True)
     # check_dataset()
     # display_anchors()
     # train(140,init_with="last")
+    train(11,init_with="last")
+    # train(10)
     # det()
     # simple_det()
     # config.display()
     # det_crack500(min2 = True)
-    det_single('./test/test4')
-    det_single('./test/test5')
+    # det_single('./test/test6')
+    # det_single('./test/test5')
     # split_det("test5")
     # split_eval("test5")
     # split_detection()

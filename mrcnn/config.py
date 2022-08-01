@@ -86,6 +86,7 @@ class Config(object):
 
     # Non-max suppression threshold to filter RPN proposals.
     # You can increase this during training to generate more propsals.
+    # RPN_NMS_THRESHOLD = 0.7
     RPN_NMS_THRESHOLD = 0.7
 
     # How many anchors per image to use for RPN training
@@ -211,8 +212,11 @@ class Config(object):
     GRADIENT_CLIP_NORM = 5.0
 
     # TODO myconfig
-    GaussianBlurFactor = 32
-    MixAlpha = 0.501
+    GaussianBlurFactor = 48
+    MixAlpha = 1.0
+    MixShift = 255
+    MixBeta = .0
+    iou_threshold = 0.4
 
     def __init__(self):
         """Set values of computed attributes."""
