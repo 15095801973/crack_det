@@ -20,9 +20,11 @@ import cv2
 sys.path.append(ROOT_DIR)  # 找到本地库
 from mrcnn.config import Config
 from mrcnn import utils
-import mrcnn.model as modellib
 from mrcnn import visualize
-from mrcnn.model import log
+# import mrcnn.model as modellib
+# from mrcnn.model import log
+import mrcnn.model_win as modellib
+from mrcnn.model_win import log
 MODEL_DIR = os.path.join(ROOT_DIR,"logs")
 DATASETS_DIR = os.path.join(ROOT_DIR,"datasets/crack_huge")
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
@@ -107,28 +109,31 @@ class CracksConfig2(Config):
     # RPN_ANCHOR_SCALES = (32, 64, 128, 256, 512)
     # RPN_ANCHOR_SCALES = (4, 8, 16, 32, 64)
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
-
+    USE_MINI_MASK = False
+    #False
 
     # BACKBONE_STRIDES = [8, 16, 32, 64, 128]
     # POOL_SIZE = 14
-    MASK_POOL_SIZE = 14
-
-    MASK_SHAPE = [28, 28]
-
+    MASK_POOL_SIZE = 28
+    POOL_SIZE = 7 # 7
+    MASK_SHAPE = [56, 56]
+    POST_NMS_ROIS_TRAINING = 200
+    POST_NMS_ROIS_INFERENCE = 100
     # 每张图片的训练感兴趣区域,不需要太大,训练集里一张图片只有一两条裂缝
     # 至少我标注得是这样,对于一些形状丰富的可能需要几个检测才能满足
     # 能够保证取到正感兴趣区域.
-    TRAIN_ROIS_PER_IMAGE = 50
-
+    TRAIN_ROIS_PER_IMAGE = 4
+    FPN_CLASSIF_FC_LAYERS_SIZE = 16
     # 每个epoch训练多少次
-    STEPS_PER_EPOCH = 100
+    STEPS_PER_EPOCH = 10
 
     # 每个epoch验证多少次
-    VALIDATION_STEPS = 5
+    VALIDATION_STEPS = 1
 
 config = CracksConfig2()
 
-class InferenceConfig(CracksConfig):
+# class InferenceConfig(CracksConfig):
+class InferenceConfig(CracksConfig2):
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
 
@@ -642,7 +647,7 @@ def dispaly_data_generator(dataset):
     return g
 
 
-def train(end_epoch,dataset_name = "crack500", init_with = "coco"):
+def train(end_epoch,dataset_name = "crack500", init_with = "没有,不想排除"):
     """
     训练模型
     :param end_epoch: 结束训练的epoch
@@ -674,7 +679,7 @@ def train(end_epoch,dataset_name = "crack500", init_with = "coco"):
         # 不同的网络层
         model.load_weights(COCO_MODEL_PATH, by_name=True,
                            exclude=["mrcnn_class_logits", "mrcnn_bbox_fc",
-                                    "mrcnn_bbox", "mrcnn_mask"])
+                                    "mrcnn_bbox", "mrcnn_mask","mrcnn_class"])
     elif init_with == "last":
         # 加载上次训练的权值并继续训练
         print("Loading weights from ", model.find_last())
@@ -696,7 +701,7 @@ def train(end_epoch,dataset_name = "crack500", init_with = "coco"):
     # 值得一提的是 epochs表示训练到哪一epoch,
     # 即必须比上次的数值大才能开始训练
     model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE  ,
+                learning_rate=config.LEARNING_RATE ,
                 epochs=end_epoch,
                 layers="5+")
 
@@ -1391,7 +1396,10 @@ def load_infer_model(init_with_last = False):
     # 获取保存的权重的路径
     # TODO 可以设置为一个特定的权值的路径,也可以直接使用最后一次的权值
     # model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
-    model_path = os.path.join(ROOT_DIR, "logs/cracks20220714T1112/mask_rcnn_cracks_0140.h5")
+    # model_path = os.path.join(ROOT_DIR, "logs/cracks20220714T1112/mask_rcnn_cracks_0140.h5")
+    # 用mini 最后一层
+    model_path = os.path.join(ROOT_DIR, "logs/cracks20220814T1729/mask_rcnn_cracks_0001.h5")
+
     # model_path = model.find_last()
     if init_with_last:
         model_path = model.find_last()
@@ -1689,17 +1697,18 @@ def split_eval(name):
 
 if __name__ == '__main__':
     # print_hi('PyCharm')
-    # load_infer_model(init_with_last = True)
+    load_infer_model(init_with_last = True)
+    # load_infer_model()
     # check_dataset()
     # display_anchors()
     # train(140,init_with="last")
-    train(11,init_with="last")
-    # train(10)
+    # train(2,init_with="last")
+    # train(1)
     # det()
     # simple_det()
     # config.display()
     # det_crack500(min2 = True)
-    # det_single('./test/test6')
+    det_single('./test/test6')
     # det_single('./test/test5')
     # split_det("test5")
     # split_eval("test5")

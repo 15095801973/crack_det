@@ -150,7 +150,7 @@ class Config(object):
     # Percent of positive ROIs used to train classifier/mask heads
     ROI_POSITIVE_RATIO = 0.33
 
-    # Pooled ROIs
+    # Pooled ROIs  分别是cls 和 mask
     POOL_SIZE = 7
     MASK_POOL_SIZE = 14
 
