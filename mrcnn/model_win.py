@@ -469,15 +469,15 @@ class PyramidROIAlign(KE.Layer):
                 # y1 = tf.minimum(y1, y2 - 1)
                 # x1 = tf.minimum(x1, x2 - 1)
 
-                y_s = tf.minimum(y1, y2)
-                x_s = tf.minimum(x1, x2)
-                y_l = tf.maximum(y1, y2)
-                x_l = tf.maximum(x1, x2)
-
-                y1 = tf.minimum(tf.maximum(0, y_s), sp -2)
-                x1 = tf.minimum(tf.maximum(0, x_s), sp -2)
-                y2 = tf.minimum(tf.maximum(y_l, y1 + 1), sp -1)
-                x2 = tf.minimum(tf.maximum(x_l, x1 + 1), sp -1)
+                # y_s = tf.minimum(y1, y2)
+                # x_s = tf.minimum(x1, x2)
+                # y_l = tf.maximum(y1, y2)
+                # x_l = tf.maximum(x1, x2)
+                #
+                # y1 = tf.minimum(tf.maximum(0, y_s), sp -2)
+                # x1 = tf.minimum(tf.maximum(0, x_s), sp -2)
+                # y2 = tf.minimum(tf.maximum(y_l, y1 + 1), sp -1)
+                # x2 = tf.minimum(tf.maximum(x_l, x1 + 1), sp -1)
 
                 h = y2 - y1
                 w = x2 - x1
@@ -485,10 +485,23 @@ class PyramidROIAlign(KE.Layer):
                 # x2 = y2 + w
                 pad_y2 = tf.abs(sp - y2)
                 pad_x2 = tf.abs(sp - x2)
-                after_crop = tf.image.crop_to_bounding_box(feature_maps[i], y1, x1, h, w)
+                zeros_ft = tf.zeros_like(feature_maps[i])
+                def func():
+                    after_crop = tf.image.crop_to_bounding_box(feature_maps[i], y1, x1, h, w)
+                    after_pad = tf.pad(after_crop, ((0, 0), (y1, pad_y2), (x1, pad_x2), (0, 0)))
+                    return after_pad
+                no_over = tf.logical_and(tf.greater_equal(sp, y2), tf.greater_equal(sp, x2))
+                # tf.greater_equal
+                no_lap = tf.logical_and(tf.greater(h, 0), tf.greater(w, 0))
+                assignment = tf.cond(
+                    tf.logical_and(no_over, no_lap),
+                    true_fn=lambda: func(),
+                    false_fn=lambda: zeros_ft
+                )
+                # after_crop = tf.image.crop_to_bounding_box(feature_maps[i], y1, x1, h, w)
                 # after_crop = tf.slice(feature_maps[i], [cons_zero, y1, x1, cons_zero], [cons_zero, y2, x2, cons_zero])
-                after_pad = tf.pad(after_crop, ((0, 0), (y1, pad_y2), (x1, pad_x2), (0, 0)))
-                lis.append(after_pad)
+                # after_pad = tf.pad(after_crop, ((0, 0), (y1, pad_y2), (x1, pad_x2), (0, 0)))
+                lis.append(assignment)
                 # [bt, h, w, c]
                 # n_pool = tf.zeros_like(feature_maps[i])
                 # n_pool[:, y1:y2, x1:x2, :] = after_crop # feature_maps[i][:, y1:y2, x1:x2, :]
@@ -1203,35 +1216,39 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
 def build_my_mask_graph(feature,  num_classes, train_bn=True):
     x = feature
     # Conv layers
-    x = KL.TimeDistributed(KL.Conv2D(16, (3, 3), padding="same"),
+    x = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
                            name="mrcnn_mask_conv1")(x)
     x = KL.TimeDistributed(BatchNorm(),
                            name='mrcnn_mask_bn1')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    x = KL.TimeDistributed(KL.Conv2D(16, (3, 3), padding="same"),
+    x = KL.TimeDistributed(KL.Conv2D(128, (3, 3), padding="same"),
                            name="mrcnn_mask_conv2")(x)
     x = KL.TimeDistributed(BatchNorm(),
                            name='mrcnn_mask_bn2')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    x = KL.TimeDistributed(KL.Conv2D(16, (3, 3), padding="same"),
+    x = KL.TimeDistributed(KL.Conv2D(64, (3, 3), padding="same"),
                            name="mrcnn_mask_conv3")(x)
     x = KL.TimeDistributed(BatchNorm(),
                            name='mrcnn_mask_bn3')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    x = KL.TimeDistributed(KL.Conv2D(16, (3, 3), padding="same"),
+    x = KL.TimeDistributed(KL.Conv2DTranspose(64, (2, 2), strides=2, activation="relu"),
+                           name="mrcnn_mask_deconv2")(x)
+
+    x = KL.TimeDistributed(KL.Conv2D(64, (3, 3), padding="same"),
                            name="mrcnn_mask_conv4")(x)
     x = KL.TimeDistributed(BatchNorm(),
                            name='mrcnn_mask_bn4')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    x = KL.TimeDistributed(KL.Conv2DTranspose(16, (2, 2), strides=2, activation="relu"),
+    x = KL.TimeDistributed(KL.Conv2DTranspose(64, (2, 2), strides=2, activation="relu"),
                            name="mrcnn_mask_deconv")(x)
+    # x = KL.TimeDistributed(KL.Conv2DTranspose(16, (2, 2), strides=2, activation="relu"),
+    #                        name="mrcnn_mask_deconv2")(x)
 
-    x = KL.TimeDistributed(KL.Conv2DTranspose(16, (2, 2), strides=2, activation="relu"),
-                           name="mrcnn_mask_deconv2")(x)
+    # KL.UpSampling2D((2, 2))(x)
 
     # x = KL.TimeDistributed(KL.Conv2DTranspose(256, (2, 2), strides=2, activation="relu"),
     #                        name="mrcnn_mask_deconv2")(x)
@@ -2211,12 +2228,17 @@ class MaskRCNN():
             KL.UpSampling2D(size=(2, 2), name="fpn_p3upsampled")(P3),
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c2p2')(C2)])
         # Attach 3x3 conv to all P layers to get the final feature maps.
+        # 32
         P2 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p2")(P2)
+        # 16
         P3 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p3")(P3)
+        # 8
         P4 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p4")(P4)
+        # 4
         P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p5")(P5)
         # P6 is used for the 5th anchor scale in RPN. Generated by
         # subsampling from P5 with stride of 2.
+        # 2
         P6 = KL.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_p6")(P5)
 
         # Note that P6 is used in RPN, but not in the classifier heads.
@@ -2494,10 +2516,11 @@ class MaskRCNN():
         self.keras_model._losses = []
         self.keras_model._per_input_losses = {}
         loss_names = [
-            "rpn_class_loss",  "rpn_bbox_loss",
+           "rpn_class_loss",  "rpn_bbox_loss",
             "mrcnn_class_loss",
             # TODO 你被开除了 "mrcnn_bbox_loss",
-            "mrcnn_mask_loss"]
+            "mrcnn_mask_loss"
+        ]
         for name in loss_names:
             layer = self.keras_model.get_layer(name)
             if layer.output in self.keras_model.losses:
@@ -2509,6 +2532,7 @@ class MaskRCNN():
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
+        # TODO refresh
         reg_losses = [
             keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(w), tf.float32)
             for w in self.keras_model.trainable_weights
@@ -2887,12 +2911,14 @@ class MaskRCNN():
             #     self.unmold_detections(detections[i], mrcnn_mask[i],
             #                            image.shape, molded_images[i].shape,
             #                            windows[i])
-            final_rois = detections[i][0:5]
-            final_class_ids = detections[i][5]
-            final_scores = detections[i][6]
+            final_rois = detections[i][:, 0:4]
+            final_class_ids = detections[i][:, 4]
+            final_scores = detections[i][:, 5]
             final_masks = mrcnn_mask[i]
+            rois_2 = ROI_2[i]
             results.append({
                 "rois": final_rois,
+                "rois_2": rois_2,
                 "class_ids": final_class_ids,
                 "scores": final_scores,
                 "masks": final_masks,

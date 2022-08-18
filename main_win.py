@@ -1,13 +1,17 @@
 import math
 
-import tensorflow as tf
 import os
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'   #指定第一块GPU可用
+import tensorflow as tf
+
 import sys
 import random
 import json
 import datetime
 import numpy as np
 import skimage.draw
+from main import CrackDataset
 
 from PIL import Image
 from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
@@ -31,7 +35,7 @@ COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 if not os.path.exists(COCO_MODEL_PATH):
     utils.download_trained_weights(COCO_MODEL_PATH)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'   #指定第一块GPU可用
+#device_count={'cpu':0}
 config = tf.ConfigProto()
 # config.gpu_options.per_process_gpu_memory_fraction = 0.9  # 程序最多只能占用指定gpu50%的显存
 config.gpu_options.allow_growth = True      #程序按需申请内存
@@ -101,14 +105,16 @@ class CracksConfig2(Config):
     NUM_CLASSES = 1 + 1
 
     # 使用小尺寸的图片以便训练得更快,训练前将其全部调整为128x128大小
-    IMAGE_MIN_DIM = 128
-    IMAGE_MAX_DIM = 128
+    IMAGE_MIN_DIM = 512
+    IMAGE_MAX_DIM = 512
+    RPN_ANCHOR_RATIOS = [0.5, 1, 2]
+
 
     # 因为数据集是混凝土表面裂缝,往往贯穿整个图片,所以必须
     # 至少设置一个128的anchors才能捕获
     # RPN_ANCHOR_SCALES = (32, 64, 128, 256, 512)
-    # RPN_ANCHOR_SCALES = (4, 8, 16, 32, 64)
-    RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
+    RPN_ANCHOR_SCALES = (4, 8, 16, 32, 64)
+    # RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
     USE_MINI_MASK = False
     #False
 
@@ -117,18 +123,29 @@ class CracksConfig2(Config):
     MASK_POOL_SIZE = 28
     POOL_SIZE = 7 # 7
     MASK_SHAPE = [56, 56]
-    POST_NMS_ROIS_TRAINING = 200
+    POST_NMS_ROIS_TRAINING = 100
     POST_NMS_ROIS_INFERENCE = 100
+    DETECTION_MAX_INSTANCES = 100
     # 每张图片的训练感兴趣区域,不需要太大,训练集里一张图片只有一两条裂缝
     # 至少我标注得是这样,对于一些形状丰富的可能需要几个检测才能满足
     # 能够保证取到正感兴趣区域.
-    TRAIN_ROIS_PER_IMAGE = 4
-    FPN_CLASSIF_FC_LAYERS_SIZE = 16
+    TRAIN_ROIS_PER_IMAGE = 8
+    FPN_CLASSIF_FC_LAYERS_SIZE = 32
     # 每个epoch训练多少次
-    STEPS_PER_EPOCH = 10
+    STEPS_PER_EPOCH = 500
+    # Weight decay regularization l2
+    WEIGHT_DECAY = 0.000001
 
     # 每个epoch验证多少次
     VALIDATION_STEPS = 1
+
+    LOSS_WEIGHTS = {
+        "rpn_class_loss": .1,
+        "rpn_bbox_loss": 1.,
+        "mrcnn_class_loss": .1,
+        "mrcnn_bbox_loss": 0.,
+        "mrcnn_mask_loss": 5.
+    }
 
 config = CracksConfig2()
 
@@ -231,6 +248,7 @@ def train(end_epoch,dataset_name = "crack500", init_with = "coco"):
         # 加载上次训练的权值并继续训练
         print("Loading weights from ", model.find_last())
         model.load_weights(model.find_last(), by_name=True)
+        # model.load_weights("logs/cracks20220818T0800/mask_rcnn_cracks_0001.h5", by_name=True)
     # 训练分为两个阶段:
     # 1. 只训练头部. 冻结所有的骨架网路层只训练初始化的网络层
     # (比如那些我们没有使用来自MS COCO的与训练的权重),
@@ -248,9 +266,11 @@ def train(end_epoch,dataset_name = "crack500", init_with = "coco"):
     # 值得一提的是 epochs表示训练到哪一epoch,
     # 即必须比上次的数值大才能开始训练
     model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE ,
+                learning_rate=config.LEARNING_RATE /10 ,
                 epochs=end_epoch,
-                layers="5+")
+                layers="heads")
+
+    #r"(mrcnn\_.*)"
 
 def load_infer_model(init_with_last = False):
     inference_config = InferenceConfig()
@@ -272,6 +292,8 @@ def load_infer_model(init_with_last = False):
     # 加载训练好的权值
     print("Loading weights from ", model_path)
     model.load_weights(model_path, by_name=True)
+    print("END Loading weights from ", model_path)
+
 
 def det_single(base_path = None):
     """
@@ -317,13 +339,16 @@ def det_single(base_path = None):
         min_scale=0,
         max_dim=DIM,
         mode="square")
+
+    mode_mask = utils.resize_mask(np.expand_dims(original_mask, axis = 2), scale, padding, crop)
+
     cvresize_img = cv2.resize(image,[DIM,DIM])
     original_image = cvresize_img
 
     #可视化原图
 
     #进行推理
-    results = model.detect([cvresize_img], verbose=1)
+    results = model.detect([molded_image], verbose=1)
     #输入只有一张图片,
     r = results[0]
     #可视化原图+检测框+mask
@@ -334,43 +359,192 @@ def det_single(base_path = None):
         return None
 
     plt.figure("original_image",figsize=(12,8))
-    plt.subplot(221),    plt.imshow(molded_image),    plt.title("original_image")
-    plt.subplot(222),    plt.imshow(cvresize_img),    plt.title("cvresize_img")
-    plt.subplot(223),    plt.imshow(original_mask),    plt.title("original_mask")
-    plt.subplot(224),    plt.imshow(float_masks[0]),    plt.title("original_mask")
+    plt.subplot(321),    plt.imshow(molded_image),    plt.title("original_image")
+    plt.subplot(322),    plt.imshow(cvresize_img),    plt.title("cvresize_img")
+    plt.subplot(323),    plt.imshow(original_mask),    plt.title("original_mask")
+    plt.subplot(325),    plt.imshow(mode_mask),    plt.title("mode_mask")
+    plt.subplot(324),    plt.imshow(float_masks[0], cmap="gray"),    plt.title("pre_mask")
     plt.show()
 
-
-
-
-
-
+    shift_masks = np.transpose(float_masks, [1, 2, 0])
     single_box_temp = np.reshape(r['rois'][0],[1,4])
-    visualize.display_instances(original_image,r['rois'] , float_masks[0], r['class_ids'],
+    #rois_2没有经过极大值抑制等
+    # molded_image  or  original_image
+    visualize.display_instances(molded_image,r['rois'] * DIM , shift_masks, r['class_ids'].astype(int),
                                 ["bg","crack"], r['scores'])
-    mode_mask = utils.resize(original_mask, (DIM, DIM, 1))
-    overlaps2 = utils.compute_overlaps_masks(mode_mask, float_masks[0])
+    overlaps2 = utils.compute_overlaps_masks(mode_mask, shift_masks[:, :, :])
     print(f'overlaps2 = {overlaps2}')
 
     return float_masks
 
     # END
 
+def det(dataset_name = "crack500"):
+    """
+    随机检测和性能评估
+    :return:
+    """
+    # 准备数据集
+    # 准备数据集
+    if dataset_name == "crack500":
+        # dataset_train = Crack500Dataset()
+        # dataset_train.load_balloon("F:\\360downloads\\CRACK500\\", "train.txt")
+        # dataset_train.load_mask(0)
+        # dataset_train.prepare()
+        dataset_val = Crack500Dataset()
+        dataset_val.load_balloon("F:\\360downloads\\CRACK500\\", "val.txt")
+        dataset_val.load_mask(0)
+        dataset_val.prepare()
+    else:
+        # 训练集
+        dataset_train = CrackDataset()
+        dataset_train.load_balloon(DATASETS_DIR, "train")
+        dataset_train.prepare()
+        # 验证集
+        dataset_val = CrackDataset()
+        dataset_val.load_balloon(DATASETS_DIR, "val")
+        dataset_val.prepare()
+    # # 创建推理配置
+    #
+    inference_config = InferenceConfig()
+    #
+    # # 以推理模式恢复模型
+    # model = modellib.MaskRCNN(mode="inference",
+    #                           config=inference_config,
+    #                           model_dir=MODEL_DIR)
+    # # 获取保存的权重的路径
+    # # TODO 可以设置为一个特定的权值的路径,也可以直接使用最后一次的权值
+    # model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
+    # # model_path = model.find_last()
+    #
+    # # 加载训练好的权值
+    # print("Loading weights from ", model_path)
+    # model.load_weights(model_path, by_name=True)
+
+
+    # 在随机的图片上进行测试
+    # TODO
+    DIM = config.IMAGE_MAX_DIM
+    dataset = dataset_val
+    # 性能评估
+    # 计算 VOC-Style mAP @ IoU=0.5
+    # Intersection over Union
+    iou_threshold = config.iou_threshold
+    image_ids = np.random.choice(dataset.image_ids, 10)
+    APs = []
+    Ps = []
+    Rs = []
+    OLs = []
+    OOLs = []
+    IOOLs = []
+    TPs = RMs = PMs = 0
+
+    visual = True
+    for image_id in image_ids:
+        # 加载图片和元数据
+        image, image_meta, gt_class_id, gt_bbox, gt_mask = \
+            modellib.load_image_gt(dataset, inference_config,
+                                   image_id, use_mini_mask=False)
+        molded_images = np.expand_dims(modellib.mold_image(image, inference_config), 0)
+        # 运行对象检测
+        results = model.detect([image], verbose=0)
+        r = results[0]
+        float_masks = r['float_masks'][:, :, :, 1]
+        shift_masks = np.transpose(float_masks, [1, 2, 0])
+
+
+
+        # visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'],
+        #                             dataset_val.class_names, r['scores'])
+        # 计算AP
+
+        # AP, precisions, recalls, overlaps = \
+        #     utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
+        #                      r['rois'] * DIM, r['class_ids'].astype(int), r["scores"], shift_masks ,iou_threshold=iou_threshold)
+        # APs.append(AP)
+        # Ps.append(precisions[1])
+        # Rs.append(recalls[1])
+        # TODO 计算opt_overlaps
+        bool_mask = np.where(shift_masks > .4, 1, 0)
+
+        overlaps = utils.compute_overlaps_masks(gt_mask, bool_mask)
+        OLs.append(overlaps.max())
+
+        maxi = overlaps.argmax()
+        TP = np.sum((bool_mask[:,:,maxi] & gt_mask[:,:,0]))
+
+        PM = np.sum(gt_mask)
+        RM = np.sum(bool_mask[:, :, maxi])
+        TPs += TP
+        PMs += PM
+        RMs += RM
+        Ps.append(TP / PM)
+        Rs.append(TP / RM)
+
+        if visual:
+            # 可视化原图
+            visualize.display_instances(image, gt_bbox, gt_mask, gt_class_id,
+                                        dataset.class_names, figsize=(8, 8))
+            plt.figure("original_image", figsize=(12, 8))
+            plt.subplot(221), plt.imshow(image), plt.title("original_image")
+            plt.subplot(223), plt.imshow(gt_mask), plt.title("original_mask")
+            plt.subplot(224), plt.imshow(float_masks[0], cmap="gray"), plt.title("pre_mask")
+            plt.show()
+            # 可视化原图+检测框+mask
+            visualize.display_instances(image, r['rois'] * DIM, shift_masks, r['class_ids'].astype(int),
+                                        dataset.class_names, r['scores'], title=str(float(overlaps.max())))
+
+        print(f'id:{image_id},path={dataset.image_info[image_id]["path"]}, overlaps:{overlaps}')
+
+        print(f'current precision:{TP / PM},recall:{TP / RM}')
+
+    # print(f"meanRecall @ IoU={iou_threshold*100}: ", np.mean(Rs))
+    # print(f"meanPrecision @ IoU={iou_threshold*100}: ", np.mean(Ps))
+    print(f"meanOverlaps @ IoU={iou_threshold*100}: ", np.mean(OLs))
+    print(f"Overlaps @ IoU={iou_threshold*100}: ", OLs)
+
+    # print(f"mAP @ IoU={iou_threshold*100}: ", np.mean(APs))
+    # print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs),OOLs)
+    # print(f"integrate_mask_overlap @ IoU={iou_threshold*100}: ", np.mean(IOOLs),IOOLs)
+    print(f'global precision:{TPs / PMs},recall:{TPs / RMs}')
+    print(f'precision:{Ps},recall:{Rs}')
+
+    x = 1
+def one_test():
+    load_infer_model(init_with_last = True)
+    # det_single('./test/test5')
+    # det_single('./test/test6')
+    det_single('./test/test7')
+    det_single('./test/test9')
+    det_single('./test/test1')
+    det_single('./test/test2')
+def two_test():
+    load_infer_model(init_with_last = True)
+    det()
+# with tf.device('/cpu:0'):
+    #     v1 = tf.constant([1.0, 2.0, 3.0], shape=[3], name='v1')
+    #     v2 = tf.constant([1.0, 2.0, 3.0], shape=[3], name='v2')
+    #     sumV12 = v1 + v2
+        # with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+        #     print(sess.run(sumV12))
 if __name__ == '__main__':
+
     # print_hi('PyCharm')
     # load_infer_model(init_with_last = True)
     # load_infer_model()
     # check_dataset()
     # display_anchors()
     # train(140,init_with="last")
-    # train(2,init_with="last")
-    train(1)
+    # train(25, init_with="last")
+    # train(1)
     # det()
     # simple_det()
     # config.display()
     # det_crack500(min2 = True)
     # det_single('./test/test6')
-    # det_single('./test/test5')
+    two_test()
+    # one_test()
     # split_det("test5")
     # split_eval("test5")
     # split_detection()
+    print("\nend")

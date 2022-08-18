@@ -216,7 +216,8 @@ class Config(object):
     MixAlpha = 1.0
     MixShift = 255
     MixBeta = .0
-    iou_threshold = 0.4
+
+    iou_threshold = 0.5
 
     def __init__(self):
         """Set values of computed attributes."""
