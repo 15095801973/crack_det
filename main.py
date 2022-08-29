@@ -23,8 +23,8 @@ from mrcnn import utils
 from mrcnn import visualize
 # import mrcnn.model as modellib
 # from mrcnn.model import log
-import mrcnn.model_win as modellib
-from mrcnn.model_win import log
+import mrcnn.model as modellib
+from mrcnn.model import log
 MODEL_DIR = os.path.join(ROOT_DIR,"logs")
 DATASETS_DIR = os.path.join(ROOT_DIR,"datasets/crack_huge")
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
@@ -117,13 +117,13 @@ class CracksConfig2(Config):
     MASK_POOL_SIZE = 28
     POOL_SIZE = 7 # 7
     MASK_SHAPE = [56, 56]
-    POST_NMS_ROIS_TRAINING = 200
-    POST_NMS_ROIS_INFERENCE = 100
+    # POST_NMS_ROIS_TRAINING = 200
+    # POST_NMS_ROIS_INFERENCE = 100
     # 每张图片的训练感兴趣区域,不需要太大,训练集里一张图片只有一两条裂缝
     # 至少我标注得是这样,对于一些形状丰富的可能需要几个检测才能满足
     # 能够保证取到正感兴趣区域.
-    TRAIN_ROIS_PER_IMAGE = 4
-    FPN_CLASSIF_FC_LAYERS_SIZE = 16
+    # TRAIN_ROIS_PER_IMAGE = 4
+    FPN_CLASSIF_FC_LAYERS_SIZE = 1024
     # 每个epoch训练多少次
     STEPS_PER_EPOCH = 10
 
@@ -939,7 +939,9 @@ def det(dataset_name = "crack500"):
     # 计算 VOC-Style mAP @ IoU=0.5
     # Intersection over Union
     iou_threshold = config.iou_threshold
-    image_ids = np.random.choice(dataset.image_ids, 10)
+    TEST_NUM = 100
+    image_ids = np.random.choice(dataset.image_ids, TEST_NUM)
+    image_ids = dataset.image_ids
     APs = []
     Ps = []
     Rs = []
@@ -949,9 +951,11 @@ def det(dataset_name = "crack500"):
     OLs = []
     OOLs = []
     IOOLs = []
+    overlaps_detail =[]
     TPs = RMs = PMs = 0
 
-    visual = True
+    visual = False
+    # visual = True
     for image_id in image_ids:
         # 加载图片和元数据
         image, image_meta, gt_class_id, gt_bbox, gt_mask = \
@@ -1033,6 +1037,7 @@ def det(dataset_name = "crack500"):
     print(f"meanRecall @ IoU={iou_threshold*100}: ", np.mean(Rs))
     print(f"meanPrecision @ IoU={iou_threshold*100}: ", np.mean(Ps))
     print(f"meanOverlaps @ IoU={iou_threshold*100}: ", np.mean(OLs))
+    print(OLs)
     print(f"mAP @ IoU={iou_threshold*100}: ", np.mean(APs))
     print(f"opt_overlaps @ IoU={iou_threshold*100}: ", np.mean(OOLs),OOLs)
     print(f"integrate_mask_overlap @ IoU={iou_threshold*100}: ", np.mean(IOOLs),IOOLs)
@@ -1396,9 +1401,9 @@ def load_infer_model(init_with_last = False):
     # 获取保存的权重的路径
     # TODO 可以设置为一个特定的权值的路径,也可以直接使用最后一次的权值
     # model_path = os.path.join(ROOT_DIR, "logs/cracks20220311T1933/mask_rcnn_shapes_0037.h5")
-    # model_path = os.path.join(ROOT_DIR, "logs/cracks20220714T1112/mask_rcnn_cracks_0140.h5")
+    model_path = os.path.join(ROOT_DIR, "logs/cracks20220714T1112/mask_rcnn_cracks_0140.h5")
     # 用mini 最后一层
-    model_path = os.path.join(ROOT_DIR, "logs/cracks20220814T1729/mask_rcnn_cracks_0001.h5")
+    # model_path = os.path.join(ROOT_DIR, "logs/cracks20220814T1729/mask_rcnn_cracks_0001.h5")
 
     # model_path = model.find_last()
     if init_with_last:
@@ -1697,18 +1702,18 @@ def split_eval(name):
 
 if __name__ == '__main__':
     # print_hi('PyCharm')
-    load_infer_model(init_with_last = True)
-    # load_infer_model()
+    # load_infer_model(init_with_last = True)
+    load_infer_model()
     # check_dataset()
     # display_anchors()
     # train(140,init_with="last")
     # train(2,init_with="last")
     # train(1)
-    # det()
+    det()
     # simple_det()
     # config.display()
     # det_crack500(min2 = True)
-    det_single('./test/test6')
+    # det_single('./test/test6')
     # det_single('./test/test5')
     # split_det("test5")
     # split_eval("test5")

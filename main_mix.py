@@ -26,8 +26,8 @@ from mrcnn import utils
 from mrcnn import visualize
 # import mrcnn.model as modellib
 # from mrcnn.model import log
-import mrcnn.model_win as modellib
-from mrcnn.model_win import log
+import mrcnn.model_mix as modellib
+from mrcnn.model_mix import log
 MODEL_DIR = os.path.join(ROOT_DIR,"logs")
 DATASETS_DIR = os.path.join(ROOT_DIR,"datasets/crack_huge")
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")

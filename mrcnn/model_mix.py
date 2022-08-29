@@ -323,7 +323,7 @@ class ProposalLayer(KE.Layer):
             indices = tf.image.non_max_suppression(
                 boxes, scores, self.proposal_count,
                 self.nms_threshold, name="rpn_non_max_suppression")
-            
+
 
             proposals = tf.gather(boxes, indices)
             # Pad if needed
@@ -1393,7 +1393,7 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
                                    config.IMAGES_PER_GPU)
 
     loss = smooth_l1_loss(target_bbox, rpn_bbox)
-    
+
     loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
     return loss
 
@@ -2885,7 +2885,7 @@ class MaskRCNN():
 
         # Mold inputs to format expected by the neural network
         molded_images, image_metas, windows = self.mold_inputs(images)
-        
+
         # Validate image sizes
         # All images in a batch MUST be of the same size
         image_shape = molded_images[0].shape
